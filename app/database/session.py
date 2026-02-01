@@ -4,7 +4,8 @@ from app.core.config import settings
 
 engine = create_engine(
     settings.DATABASE_URL,
-    pool_pre_ping=True
+    pool_pre_ping=True,
+    echo=False  # Set to True for SQL query logging during development
 )
 
 SessionLocal = sessionmaker(
@@ -12,3 +13,20 @@ SessionLocal = sessionmaker(
     autoflush=False,
     bind=engine
 )
+
+
+def get_db():
+    """
+    Database session dependency for FastAPI routes
+    
+    Usage:
+        @router.get("/endpoint")
+        def endpoint(db: Session = Depends(get_db)):
+            # Use db here
+    """
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
