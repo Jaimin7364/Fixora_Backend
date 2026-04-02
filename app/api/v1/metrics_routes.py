@@ -4,6 +4,8 @@ from sqlalchemy import func, and_
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 from app.database.session import get_db
+from app.core.security import require_roles
+from app.models.user import User, UserRole
 from app.models.ticket import Ticket, TicketStatus, TicketPriority, TicketCategory
 from app.schemas.ticket import DashboardStats
 
@@ -11,7 +13,10 @@ router = APIRouter(prefix="/metrics", tags=["Metrics & Analytics"])
 
 
 @router.get("/dashboard", response_model=DashboardStats)
-def get_dashboard_stats(db: Session = Depends(get_db)):
+def get_dashboard_stats(
+    _current_user: User = Depends(require_roles([UserRole.ADMIN, UserRole.IT_SUPPORT, UserRole.MANAGER])),
+    db: Session = Depends(get_db),
+):
     """
     Get overall dashboard statistics
     
@@ -71,7 +76,10 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
 
 
 @router.get("/tickets-by-category")
-def get_tickets_by_category(db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
+def get_tickets_by_category(
+    _current_user: User = Depends(require_roles([UserRole.ADMIN, UserRole.IT_SUPPORT, UserRole.MANAGER])),
+    db: Session = Depends(get_db),
+) -> List[Dict[str, Any]]:
     """
     Get ticket count grouped by category
     
@@ -92,7 +100,10 @@ def get_tickets_by_category(db: Session = Depends(get_db)) -> List[Dict[str, Any
 
 
 @router.get("/tickets-by-status")
-def get_tickets_by_status(db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
+def get_tickets_by_status(
+    _current_user: User = Depends(require_roles([UserRole.ADMIN, UserRole.IT_SUPPORT, UserRole.MANAGER])),
+    db: Session = Depends(get_db),
+) -> List[Dict[str, Any]]:
     """
     Get ticket count grouped by status
     
@@ -113,7 +124,10 @@ def get_tickets_by_status(db: Session = Depends(get_db)) -> List[Dict[str, Any]]
 
 
 @router.get("/tickets-by-priority")
-def get_tickets_by_priority(db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
+def get_tickets_by_priority(
+    _current_user: User = Depends(require_roles([UserRole.ADMIN, UserRole.IT_SUPPORT, UserRole.MANAGER])),
+    db: Session = Depends(get_db),
+) -> List[Dict[str, Any]]:
     """
     Get ticket count grouped by priority
     
@@ -136,6 +150,7 @@ def get_tickets_by_priority(db: Session = Depends(get_db)) -> List[Dict[str, Any
 @router.get("/ticket-trends")
 def get_ticket_trends(
     days: int = Query(30, ge=1, le=365),
+    _current_user: User = Depends(require_roles([UserRole.ADMIN, UserRole.IT_SUPPORT, UserRole.MANAGER])),
     db: Session = Depends(get_db)
 ) -> List[Dict[str, Any]]:
     """
@@ -166,7 +181,10 @@ def get_ticket_trends(
 
 
 @router.get("/resolution-time-by-priority")
-def get_resolution_time_by_priority(db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
+def get_resolution_time_by_priority(
+    _current_user: User = Depends(require_roles([UserRole.ADMIN, UserRole.IT_SUPPORT, UserRole.MANAGER])),
+    db: Session = Depends(get_db),
+) -> List[Dict[str, Any]]:
     """
     Get average resolution time grouped by priority
     
@@ -201,7 +219,10 @@ def get_resolution_time_by_priority(db: Session = Depends(get_db)) -> List[Dict[
 
 
 @router.get("/sla-compliance")
-def get_sla_compliance(db: Session = Depends(get_db)) -> Dict[str, Any]:
+def get_sla_compliance(
+    _current_user: User = Depends(require_roles([UserRole.ADMIN, UserRole.IT_SUPPORT, UserRole.MANAGER])),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
     """
     Get SLA compliance statistics
     
@@ -240,6 +261,7 @@ def get_sla_compliance(db: Session = Depends(get_db)) -> Dict[str, Any]:
 @router.get("/top-issues")
 def get_top_issues(
     limit: int = Query(10, ge=1, le=50),
+    _current_user: User = Depends(require_roles([UserRole.ADMIN, UserRole.IT_SUPPORT, UserRole.MANAGER])),
     db: Session = Depends(get_db)
 ) -> List[Dict[str, Any]]:
     """
@@ -268,7 +290,10 @@ def get_top_issues(
 
 
 @router.get("/agent-performance")
-def get_agent_performance(db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
+def get_agent_performance(
+    _current_user: User = Depends(require_roles([UserRole.ADMIN, UserRole.IT_SUPPORT, UserRole.MANAGER])),
+    db: Session = Depends(get_db),
+) -> List[Dict[str, Any]]:
     """
     Get performance metrics for IT support agents
     

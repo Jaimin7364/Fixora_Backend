@@ -9,3 +9,4 @@ from app.models.ticket_activity import TicketActivity
 from app.models.knowledge_base import KnowledgeBase
 from app.models.attachment import Attachment
 from app.models.sla_policy import SLAPolicy
+from app.models.auth_credential import AuthCredential

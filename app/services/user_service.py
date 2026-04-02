@@ -1,7 +1,9 @@
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from app.models.user import User, UserRole
+from app.models.auth_credential import AuthCredential
 from app.schemas.user import UserCreate, UserUpdate
+from app.core.security import get_password_hash, verify_password
 
 
 class UserService:
@@ -22,7 +24,51 @@ class UserService:
         db.add(user)
         db.commit()
         db.refresh(user)
+
+        if user_data.password:
+            credential = AuthCredential(
+                user_id=user.id,
+                password_hash=get_password_hash(user_data.password),
+            )
+            db.add(credential)
+            db.commit()
         
+        return user
+
+    @staticmethod
+    def set_password(db: Session, user_id: int, plain_password: str) -> Optional[AuthCredential]:
+        """Create or update password hash for a user"""
+        user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            return None
+
+        credential = db.query(AuthCredential).filter(AuthCredential.user_id == user_id).first()
+        password_hash = get_password_hash(plain_password)
+
+        if credential:
+            credential.password_hash = password_hash
+        else:
+            credential = AuthCredential(user_id=user_id, password_hash=password_hash)
+            db.add(credential)
+
+        db.commit()
+        db.refresh(credential)
+        return credential
+
+    @staticmethod
+    def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
+        """Authenticate user by email and password"""
+        user = db.query(User).filter(User.email == email).first()
+        if not user or not user.is_active:
+            return None
+
+        credential = db.query(AuthCredential).filter(AuthCredential.user_id == user.id).first()
+        if not credential:
+            return None
+
+        if not verify_password(password, credential.password_hash):
+            return None
+
         return user
     
     @staticmethod

@@ -4,6 +4,7 @@ from app.models.ticket_activity import TicketActivity, ActivityType
 from app.models.knowledge_base import KnowledgeBase, KBCategory
 from app.models.attachment import Attachment
 from app.models.sla_policy import SLAPolicy
+from app.models.auth_credential import AuthCredential
 
 __all__ = [
     "User",
@@ -18,4 +19,5 @@ __all__ = [
     "KBCategory",
     "Attachment",
     "SLAPolicy",
+    "AuthCredential",
 ]

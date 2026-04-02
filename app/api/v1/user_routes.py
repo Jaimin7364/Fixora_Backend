@@ -2,7 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import Optional
 from app.database.session import get_db
-from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserListResponse, UserRole
+from app.core.security import get_current_user, require_roles
+from app.models.user import User, UserRole
+from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserListResponse
 from app.services.user_service import UserService
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -11,6 +13,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def create_user(
     user_data: UserCreate,
+    _current_user: User = Depends(require_roles([UserRole.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """
@@ -50,6 +53,7 @@ def list_users(
     is_active: Optional[bool] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(100, ge=1, le=500),
+    _current_user: User = Depends(require_roles([UserRole.ADMIN, UserRole.MANAGER])),
     db: Session = Depends(get_db)
 ):
     """
@@ -83,6 +87,7 @@ def list_users(
 @router.get("/{user_id}", response_model=UserResponse)
 def get_user(
     user_id: int,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -95,6 +100,12 @@ def get_user(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"User with ID {user_id} not found"
         )
+
+    if current_user.id != user_id and current_user.role not in [UserRole.ADMIN, UserRole.MANAGER]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to view this user"
+        )
     
     return user
 
@@ -102,6 +113,7 @@ def get_user(
 @router.get("/email/{email}", response_model=UserResponse)
 def get_user_by_email(
     email: str,
+    _current_user: User = Depends(require_roles([UserRole.ADMIN, UserRole.MANAGER])),
     db: Session = Depends(get_db)
 ):
     """
@@ -121,6 +133,7 @@ def get_user_by_email(
 @router.get("/slack/{slack_id}", response_model=UserResponse)
 def get_user_by_slack_id(
     slack_id: str,
+    _current_user: User = Depends(require_roles([UserRole.ADMIN, UserRole.MANAGER])),
     db: Session = Depends(get_db)
 ):
     """
@@ -141,11 +154,18 @@ def get_user_by_slack_id(
 def update_user(
     user_id: int,
     user_update: UserUpdate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Update user information
     """
+    if current_user.id != user_id and current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to update this user"
+        )
+
     user = UserService.update_user(db, user_id, user_update)
     
     if not user:
@@ -160,6 +180,7 @@ def update_user(
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user(
     user_id: int,
+    _current_user: User = Depends(require_roles([UserRole.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """
@@ -178,6 +199,7 @@ def delete_user(
 
 @router.get("/it-staff/list", response_model=UserListResponse)
 def get_it_staff(
+    _current_user: User = Depends(require_roles([UserRole.ADMIN, UserRole.MANAGER])),
     db: Session = Depends(get_db)
 ):
     """

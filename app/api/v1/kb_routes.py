@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import Optional
 from app.database.session import get_db
+from app.core.security import get_current_user, require_roles
+from app.models.user import User, UserRole
 from app.schemas.kb import (
     KBCreate, KBUpdate, KBResponse, KBListResponse,
     KBSearchRequest, KBSearchResponse
@@ -15,6 +17,7 @@ router = APIRouter(prefix="/kb", tags=["Knowledge Base"])
 @router.post("/", response_model=KBResponse, status_code=status.HTTP_201_CREATED)
 def create_article(
     kb_data: KBCreate,
+    _current_user: User = Depends(require_roles([UserRole.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """
@@ -26,7 +29,6 @@ def create_article(
     - **category**: Category (hardware, software, etc.)
     - **keywords**: Comma-separated keywords for search
     """
-    # TODO: Add admin role check
     article = KBService.create_article(db, kb_data)
     return article
 
@@ -37,6 +39,7 @@ def list_articles(
     is_featured: Optional[bool] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    _current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -70,6 +73,7 @@ def search_articles(
     q: str = Query(..., min_length=2, max_length=200),
     category: Optional[TicketCategory] = None,
     limit: int = Query(10, ge=1, le=50),
+    _current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -95,6 +99,7 @@ def search_articles(
 @router.get("/{article_id}", response_model=KBResponse)
 def get_article(
     article_id: int,
+    _current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -117,12 +122,12 @@ def get_article(
 def update_article(
     article_id: int,
     kb_update: KBUpdate,
+    _current_user: User = Depends(require_roles([UserRole.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """
     Update a knowledge base article (Admin only)
     """
-    # TODO: Add admin role check
     article = KBService.update_article(db, article_id, kb_update)
     
     if not article:
@@ -138,6 +143,7 @@ def update_article(
 def mark_helpful(
     article_id: int,
     helpful: bool = Query(True),
+    _current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
@@ -159,6 +165,7 @@ def mark_helpful(
 @router.delete("/{article_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_article(
     article_id: int,
+    _current_user: User = Depends(require_roles([UserRole.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """
@@ -166,7 +173,6 @@ def delete_article(
     
     This performs a soft delete by setting is_active to False
     """
-    # TODO: Add admin role check
     success = KBService.delete_article(db, article_id)
     
     if not success:
@@ -182,6 +188,7 @@ def delete_article(
 def get_featured_articles(
     page: int = Query(1, ge=1),
     page_size: int = Query(10, ge=1, le=50),
+    _current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
