@@ -12,6 +12,7 @@ class UserRole(str, Enum):
 
 
 class UserBase(BaseModel):
+    organization_id: Optional[int] = None
     email: EmailStr
     full_name: str = Field(..., min_length=2, max_length=255)
     teams_user_id: Optional[str] = Field(None, max_length=255)
@@ -31,6 +32,7 @@ class UserCreate(UserBase):
 
 
 class UserUpdate(BaseModel):
+    organization_id: Optional[int] = None
     email: Optional[EmailStr] = None
     full_name: Optional[str] = Field(None, min_length=2, max_length=255)
     teams_user_id: Optional[str] = Field(None, max_length=255)

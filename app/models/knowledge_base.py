@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Enum as SQLEnum, ForeignKey
 from sqlalchemy.sql import func
 from app.database.base import Base
 import enum
@@ -19,6 +19,7 @@ class KnowledgeBase(Base):
     __tablename__ = "knowledge_base"
 
     id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), index=True)
     title = Column(String(500), nullable=False, index=True)
     question = Column(Text, nullable=False)
     answer = Column(Text, nullable=False)

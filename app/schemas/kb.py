@@ -13,6 +13,7 @@ class KBBase(BaseModel):
 
 
 class KBCreate(KBBase):
+    organization_id: Optional[int] = None
     is_active: bool = True
     is_featured: bool = False
 

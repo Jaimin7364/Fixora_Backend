@@ -30,11 +30,12 @@ class TicketService:
         return f"TKT-{current_year}-{new_sequence:04d}"
     
     @staticmethod
-    def calculate_sla_deadline(db: Session, priority: TicketPriority) -> Optional[datetime]:
+    def calculate_sla_deadline(db: Session, priority: TicketPriority, organization_id: Optional[int] = None) -> Optional[datetime]:
         """Calculate SLA deadline based on priority"""
-        sla_policy = db.query(SLAPolicy).filter(
-            SLAPolicy.priority == priority.value
-        ).first()
+        query = db.query(SLAPolicy).filter(SLAPolicy.priority == priority.value)
+        if organization_id is not None:
+            query = query.filter(SLAPolicy.organization_id == organization_id)
+        sla_policy = query.first()
         
         if sla_policy:
             return datetime.now() + timedelta(hours=sla_policy.resolution_time_hours)
@@ -44,7 +45,8 @@ class TicketService:
     def create_ticket(
         db: Session, 
         ticket_data: TicketCreate, 
-        user_id: int
+        user_id: int,
+        organization_id: int,
     ) -> Ticket:
         """Create a new ticket"""
         # Generate ticket number
@@ -54,10 +56,11 @@ class TicketService:
         priority = TicketPriority.MEDIUM
         
         # Calculate SLA deadline
-        sla_deadline = TicketService.calculate_sla_deadline(db, priority)
+        sla_deadline = TicketService.calculate_sla_deadline(db, priority, organization_id)
         
         # Create ticket
         ticket = Ticket(
+            organization_id=organization_id,
             ticket_number=ticket_number,
             user_id=user_id,
             title=ticket_data.title,
@@ -74,6 +77,7 @@ class TicketService:
         
         # Create activity log
         activity = TicketActivity(
+            organization_id=organization_id,
             ticket_id=ticket.id,
             user_id=user_id,
             activity_type=ActivityType.CREATED,
@@ -85,14 +89,20 @@ class TicketService:
         return ticket
     
     @staticmethod
-    def get_ticket(db: Session, ticket_id: int) -> Optional[Ticket]:
+    def get_ticket(db: Session, ticket_id: int, organization_id: Optional[int] = None) -> Optional[Ticket]:
         """Get ticket by ID"""
-        return db.query(Ticket).filter(Ticket.id == ticket_id).first()
+        query = db.query(Ticket).filter(Ticket.id == ticket_id)
+        if organization_id is not None:
+            query = query.filter(Ticket.organization_id == organization_id)
+        return query.first()
     
     @staticmethod
-    def get_ticket_by_number(db: Session, ticket_number: str) -> Optional[Ticket]:
+    def get_ticket_by_number(db: Session, ticket_number: str, organization_id: Optional[int] = None) -> Optional[Ticket]:
         """Get ticket by ticket number"""
-        return db.query(Ticket).filter(Ticket.ticket_number == ticket_number).first()
+        query = db.query(Ticket).filter(Ticket.ticket_number == ticket_number)
+        if organization_id is not None:
+            query = query.filter(Ticket.organization_id == organization_id)
+        return query.first()
     
     @staticmethod
     def list_tickets(
@@ -100,6 +110,7 @@ class TicketService:
         status: Optional[TicketStatus] = None,
         priority: Optional[TicketPriority] = None,
         category: Optional[TicketCategory] = None,
+        organization_id: Optional[int] = None,
         user_id: Optional[int] = None,
         assigned_to_id: Optional[int] = None,
         search: Optional[str] = None,
@@ -108,6 +119,8 @@ class TicketService:
     ) -> tuple[List[Ticket], int]:
         """List tickets with filters and pagination"""
         query = db.query(Ticket)
+        if organization_id is not None:
+            query = query.filter(Ticket.organization_id == organization_id)
         
         # Apply filters
         if status:
@@ -143,10 +156,14 @@ class TicketService:
         db: Session,
         ticket_id: int,
         ticket_update: TicketUpdate,
-        user_id: int
+        user_id: int,
+        organization_id: Optional[int] = None,
     ) -> Optional[Ticket]:
         """Update ticket"""
-        ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+        query = db.query(Ticket).filter(Ticket.id == ticket_id)
+        if organization_id is not None:
+            query = query.filter(Ticket.organization_id == organization_id)
+        ticket = query.first()
         if not ticket:
             return None
         
@@ -167,6 +184,7 @@ class TicketService:
             # Create activity logs for each change
             for field, old_value, new_value in changes:
                 activity = TicketActivity(
+                    organization_id=ticket.organization_id,
                     ticket_id=ticket.id,
                     user_id=user_id,
                     activity_type=ActivityType.UPDATED,
@@ -185,10 +203,14 @@ class TicketService:
         db: Session,
         ticket_id: int,
         status_update: TicketStatusUpdate,
-        user_id: int
+        user_id: int,
+        organization_id: Optional[int] = None,
     ) -> Optional[Ticket]:
         """Change ticket status"""
-        ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+        query = db.query(Ticket).filter(Ticket.id == ticket_id)
+        if organization_id is not None:
+            query = query.filter(Ticket.organization_id == organization_id)
+        ticket = query.first()
         if not ticket:
             return None
         
@@ -206,6 +228,7 @@ class TicketService:
         
         # Create activity log
         activity = TicketActivity(
+            organization_id=ticket.organization_id,
             ticket_id=ticket.id,
             user_id=user_id,
             activity_type=ActivityType.STATUS_CHANGED,
@@ -223,10 +246,14 @@ class TicketService:
         db: Session,
         ticket_id: int,
         assigned_to_id: int,
-        user_id: int
+        user_id: int,
+        organization_id: Optional[int] = None,
     ) -> Optional[Ticket]:
         """Assign ticket to IT staff"""
-        ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+        query = db.query(Ticket).filter(Ticket.id == ticket_id)
+        if organization_id is not None:
+            query = query.filter(Ticket.organization_id == organization_id)
+        ticket = query.first()
         if not ticket:
             return None
         
@@ -242,6 +269,7 @@ class TicketService:
         
         # Create activity log
         activity = TicketActivity(
+            organization_id=ticket.organization_id,
             ticket_id=ticket.id,
             user_id=user_id,
             activity_type=ActivityType.ASSIGNED,
@@ -259,10 +287,12 @@ class TicketService:
         db: Session,
         ticket_id: int,
         comment_data: CommentCreate,
-        user_id: int
+        user_id: int,
+        organization_id: int,
     ) -> TicketActivity:
         """Add comment to ticket"""
         activity = TicketActivity(
+            organization_id=organization_id,
             ticket_id=ticket_id,
             user_id=user_id,
             activity_type=ActivityType.COMMENT,
@@ -278,17 +308,22 @@ class TicketService:
     @staticmethod
     def get_ticket_activities(
         db: Session,
-        ticket_id: int
+        ticket_id: int,
+        organization_id: Optional[int] = None,
     ) -> List[TicketActivity]:
         """Get all activities for a ticket"""
-        return db.query(TicketActivity).filter(
-            TicketActivity.ticket_id == ticket_id
-        ).order_by(TicketActivity.created_at.desc()).all()
+        query = db.query(TicketActivity).filter(TicketActivity.ticket_id == ticket_id)
+        if organization_id is not None:
+            query = query.filter(TicketActivity.organization_id == organization_id)
+        return query.order_by(TicketActivity.created_at.desc()).all()
     
     @staticmethod
-    def delete_ticket(db: Session, ticket_id: int) -> bool:
+    def delete_ticket(db: Session, ticket_id: int, organization_id: Optional[int] = None) -> bool:
         """Delete ticket (soft delete by setting status to cancelled)"""
-        ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+        query = db.query(Ticket).filter(Ticket.id == ticket_id)
+        if organization_id is not None:
+            query = query.filter(Ticket.organization_id == organization_id)
+        ticket = query.first()
         if not ticket:
             return False
         
@@ -302,10 +337,14 @@ class TicketService:
         ticket_id: int,
         category: TicketCategory,
         priority: TicketPriority,
-        confidence: float
+        confidence: float,
+        organization_id: Optional[int] = None,
     ) -> Optional[Ticket]:
         """Update ticket with AI classification results"""
-        ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+        query = db.query(Ticket).filter(Ticket.id == ticket_id)
+        if organization_id is not None:
+            query = query.filter(Ticket.organization_id == organization_id)
+        ticket = query.first()
         if not ticket:
             return None
         
@@ -315,7 +354,7 @@ class TicketService:
         ticket.ai_confidence = confidence
         
         # Recalculate SLA deadline based on new priority
-        ticket.sla_deadline = TicketService.calculate_sla_deadline(db, priority)
+        ticket.sla_deadline = TicketService.calculate_sla_deadline(db, priority, ticket.organization_id)
         
         db.commit()
         db.refresh(ticket)

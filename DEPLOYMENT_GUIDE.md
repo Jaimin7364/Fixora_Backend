@@ -7,9 +7,9 @@
 - **Backend Health Check**: `http://143.244.136.25:8000/health`
 - **FastAPI Server**: Running on port 8000
 
-### ❌ Needs Fix:
-- **Database Tables**: Missing SLA policies
-- **Ticket Creation**: Failing with 500 error due to missing data
+### ⚠️ Needs Verification:
+- **Multi-tenant migration**: Backfill org IDs for existing data
+- **Slack OAuth**: Install flow must be validated
 
 ## 🚀 Deployment Steps
 
@@ -77,7 +77,21 @@ Creating sample users...
 ==================================================
 ```
 
-### Step 5: Verify Deployment
+### Step 5: Run Multi-Tenant Backfill
+
+```bash
+python3 migrate_multitenancy.py
+```
+
+Expected output:
+```
+Migration complete:
+  users updated: <n>
+  memberships created: <n>
+  tickets updated: <n>
+```
+
+### Step 6: Verify Deployment
 
 Run the test script from your local machine:
 
@@ -158,7 +172,36 @@ curl http://143.244.136.25:8000/api/v1/tickets/ | python3 -m json.tool
 curl http://143.244.136.25:8000/api/v1/tickets/1 | python3 -m json.tool
 ```
 
-## 🤖 Slack Bot Integration
+## 🤖 Slack OAuth + Bot Integration
+
+### 1. Configure Slack OAuth
+Set these in `.env`:
+
+```
+SLACK_CLIENT_ID=...
+SLACK_CLIENT_SECRET=...
+SLACK_OAUTH_REDIRECT_URI=https://your-domain.com/api/v1/slack/oauth/callback
+SLACK_SIGNING_SECRET=...
+SLACK_ENCRYPTION_KEY=...
+```
+
+### 2. Install App in Workspace
+Open the install URL endpoint:
+
+```
+GET /api/v1/slack/oauth/install
+```
+
+Follow the `install_url` and complete the install. This stores the workspace mapping.
+
+### 3. Slack Events/Commands
+Configure Slack to send events and commands to:
+
+```
+POST /api/v1/slack/events
+POST /api/v1/slack/commands
+POST /api/v1/slack/interactions
+```
 
 Once the backend is working, you can integrate with your Slack bot:
 

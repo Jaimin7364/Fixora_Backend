@@ -13,7 +13,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def create_user(
     user_data: UserCreate,
-    _current_user: User = Depends(require_roles([UserRole.ADMIN])),
+    current_user: User = Depends(require_roles([UserRole.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """
@@ -27,7 +27,7 @@ def create_user(
     - **phone**: Phone number
     """
     # Check if user already exists
-    existing_user = UserService.get_user_by_email(db, user_data.email)
+    existing_user = UserService.get_user_by_email(db, user_data.email, current_user.organization_id)
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -35,14 +35,14 @@ def create_user(
         )
     
     if user_data.teams_user_id:
-        existing_slack = UserService.get_user_by_slack_id(db, user_data.teams_user_id)
+        existing_slack = UserService.get_user_by_slack_id(db, user_data.teams_user_id, current_user.organization_id)
         if existing_slack:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User with this Slack ID already exists"
             )
     
-    user = UserService.create_user(db, user_data)
+    user = UserService.create_user(db, user_data, current_user.organization_id)
     return user
 
 
@@ -53,7 +53,7 @@ def list_users(
     is_active: Optional[bool] = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(100, ge=1, le=500),
-    _current_user: User = Depends(require_roles([UserRole.ADMIN, UserRole.MANAGER])),
+    current_user: User = Depends(require_roles([UserRole.ADMIN, UserRole.MANAGER])),
     db: Session = Depends(get_db)
 ):
     """
@@ -72,6 +72,7 @@ def list_users(
         role=role,
         department=department,
         is_active=is_active,
+        organization_id=current_user.organization_id,
         skip=skip,
         limit=page_size
     )
@@ -93,7 +94,7 @@ def get_user(
     """
     Get user by ID
     """
-    user = UserService.get_user(db, user_id)
+    user = UserService.get_user(db, user_id, current_user.organization_id)
     
     if not user:
         raise HTTPException(
@@ -119,7 +120,7 @@ def get_user_by_email(
     """
     Get user by email
     """
-    user = UserService.get_user_by_email(db, email)
+    user = UserService.get_user_by_email(db, email, _current_user.organization_id)
     
     if not user:
         raise HTTPException(
@@ -139,7 +140,7 @@ def get_user_by_slack_id(
     """
     Get user by Slack/Teams user ID
     """
-    user = UserService.get_user_by_slack_id(db, slack_id)
+    user = UserService.get_user_by_slack_id(db, slack_id, _current_user.organization_id)
     
     if not user:
         raise HTTPException(
@@ -166,7 +167,7 @@ def update_user(
             detail="You do not have permission to update this user"
         )
 
-    user = UserService.update_user(db, user_id, user_update)
+    user = UserService.update_user(db, user_id, user_update, current_user.organization_id)
     
     if not user:
         raise HTTPException(
@@ -186,7 +187,7 @@ def delete_user(
     """
     Deactivate user (soft delete)
     """
-    success = UserService.delete_user(db, user_id)
+    success = UserService.delete_user(db, user_id, _current_user.organization_id)
     
     if not success:
         raise HTTPException(
@@ -205,7 +206,7 @@ def get_it_staff(
     """
     Get all IT support staff and admins
     """
-    staff = UserService.get_it_staff(db)
+    staff = UserService.get_it_staff(db, _current_user.organization_id)
     
     return UserListResponse(
         users=staff,

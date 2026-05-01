@@ -17,7 +17,7 @@ router = APIRouter(prefix="/kb", tags=["Knowledge Base"])
 @router.post("/", response_model=KBResponse, status_code=status.HTTP_201_CREATED)
 def create_article(
     kb_data: KBCreate,
-    _current_user: User = Depends(require_roles([UserRole.ADMIN])),
+    current_user: User = Depends(require_roles([UserRole.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """
@@ -29,6 +29,7 @@ def create_article(
     - **category**: Category (hardware, software, etc.)
     - **keywords**: Comma-separated keywords for search
     """
+    kb_data.organization_id = current_user.organization_id
     article = KBService.create_article(db, kb_data)
     return article
 
@@ -55,6 +56,7 @@ def list_articles(
     articles, total = KBService.list_articles(
         db=db,
         category=category,
+        organization_id=_current_user.organization_id,
         is_featured=is_featured,
         skip=skip,
         limit=page_size
@@ -87,6 +89,7 @@ def search_articles(
         db=db,
         query_text=q,
         category=category,
+        organization_id=_current_user.organization_id,
         limit=limit
     )
     
@@ -107,7 +110,7 @@ def get_article(
     
     This automatically increments the view count
     """
-    article = KBService.get_article(db, article_id)
+    article = KBService.get_article(db, article_id, _current_user.organization_id)
     
     if not article:
         raise HTTPException(
@@ -122,13 +125,13 @@ def get_article(
 def update_article(
     article_id: int,
     kb_update: KBUpdate,
-    _current_user: User = Depends(require_roles([UserRole.ADMIN])),
+    current_user: User = Depends(require_roles([UserRole.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """
     Update a knowledge base article (Admin only)
     """
-    article = KBService.update_article(db, article_id, kb_update)
+    article = KBService.update_article(db, article_id, kb_update, current_user.organization_id)
     
     if not article:
         raise HTTPException(
@@ -151,7 +154,7 @@ def mark_helpful(
     
     - **helpful**: True for helpful, False for not helpful
     """
-    article = KBService.mark_helpful(db, article_id, helpful)
+    article = KBService.mark_helpful(db, article_id, helpful, _current_user.organization_id)
     
     if not article:
         raise HTTPException(
@@ -165,7 +168,7 @@ def mark_helpful(
 @router.delete("/{article_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_article(
     article_id: int,
-    _current_user: User = Depends(require_roles([UserRole.ADMIN])),
+    current_user: User = Depends(require_roles([UserRole.ADMIN])),
     db: Session = Depends(get_db)
 ):
     """
@@ -173,7 +176,7 @@ def delete_article(
     
     This performs a soft delete by setting is_active to False
     """
-    success = KBService.delete_article(db, article_id)
+    success = KBService.delete_article(db, article_id, current_user.organization_id)
     
     if not success:
         raise HTTPException(
@@ -198,6 +201,7 @@ def get_featured_articles(
     
     articles, total = KBService.list_articles(
         db=db,
+        organization_id=_current_user.organization_id,
         is_featured=True,
         skip=skip,
         limit=page_size

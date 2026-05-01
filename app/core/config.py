@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     # Slack Configuration
     SLACK_BOT_TOKEN: Optional[str] = None
     SLACK_SIGNING_SECRET: Optional[str] = None
+    SLACK_CLIENT_ID: Optional[str] = None
+    SLACK_CLIENT_SECRET: Optional[str] = None
+    SLACK_OAUTH_REDIRECT_URI: Optional[str] = None
+    SLACK_OAUTH_SCOPES: str = "commands,app_mentions:read,chat:write"
+    SLACK_ENCRYPTION_KEY: Optional[str] = None
     
     # Gemini AI
     GEMINI_API_KEY: Optional[str] = None

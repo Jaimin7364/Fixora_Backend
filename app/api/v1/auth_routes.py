@@ -26,6 +26,10 @@ def bootstrap_admin(payload: BootstrapAdminRequest, db: Session = Depends(get_db
             detail="Bootstrap is disabled once users exist."
         )
 
+    organization = UserService.get_organization_by_slug(db, "default-organization")
+    if not organization:
+        organization = UserService.create_organization(db, "Default Organization")
+
     admin = UserService.create_user(
         db,
         UserCreate(
@@ -36,6 +40,7 @@ def bootstrap_admin(payload: BootstrapAdminRequest, db: Session = Depends(get_db
             phone=payload.phone,
             role=UserRole.ADMIN,
         ),
+        organization.id,
     )
     return admin
 

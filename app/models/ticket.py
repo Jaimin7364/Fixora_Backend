@@ -36,6 +36,7 @@ class Ticket(Base):
     __tablename__ = "tickets"
 
     id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), index=True)
     ticket_number = Column(String(50), unique=True, index=True, nullable=False)  # e.g., TKT-2024-0001
     
     # User information

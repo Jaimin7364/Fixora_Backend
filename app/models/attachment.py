@@ -8,6 +8,7 @@ class Attachment(Base):
     __tablename__ = "attachments"
 
     id = Column(Integer, primary_key=True, index=True)
+    organization_id = Column(Integer, ForeignKey("organizations.id"), index=True)
     ticket_id = Column(Integer, ForeignKey("tickets.id"), nullable=False)
     
     # File information

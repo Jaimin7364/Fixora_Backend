@@ -11,7 +11,9 @@ class KBService:
     @staticmethod
     def create_article(db: Session, kb_data: KBCreate) -> KnowledgeBase:
         """Create a new knowledge base article"""
+        organization_id = getattr(kb_data, "organization_id", None)
         article = KnowledgeBase(
+            organization_id=organization_id,
             title=kb_data.title,
             question=kb_data.question,
             answer=kb_data.answer,
@@ -31,11 +33,12 @@ class KBService:
         return article
     
     @staticmethod
-    def get_article(db: Session, article_id: int) -> Optional[KnowledgeBase]:
+    def get_article(db: Session, article_id: int, organization_id: Optional[int] = None) -> Optional[KnowledgeBase]:
         """Get article by ID and increment view count"""
-        article = db.query(KnowledgeBase).filter(
-            KnowledgeBase.id == article_id
-        ).first()
+        query = db.query(KnowledgeBase).filter(KnowledgeBase.id == article_id)
+        if organization_id is not None:
+            query = query.filter(KnowledgeBase.organization_id == organization_id)
+        article = query.first()
         
         if article:
             article.view_count += 1
@@ -48,6 +51,7 @@ class KBService:
     def list_articles(
         db: Session,
         category: Optional[TicketCategory] = None,
+        organization_id: Optional[int] = None,
         is_active: bool = True,
         is_featured: Optional[bool] = None,
         skip: int = 0,
@@ -55,6 +59,8 @@ class KBService:
     ) -> tuple[List[KnowledgeBase], int]:
         """List knowledge base articles with filters"""
         query = db.query(KnowledgeBase)
+        if organization_id is not None:
+            query = query.filter(KnowledgeBase.organization_id == organization_id)
         
         if is_active is not None:
             query = query.filter(KnowledgeBase.is_active == is_active)
@@ -76,6 +82,7 @@ class KBService:
         db: Session,
         query_text: str,
         category: Optional[TicketCategory] = None,
+        organization_id: Optional[int] = None,
         limit: int = 10
     ) -> List[KnowledgeBase]:
         """Search knowledge base articles"""
@@ -90,6 +97,9 @@ class KBService:
                 KnowledgeBase.keywords.ilike(search_filter)
             )
         )
+
+        if organization_id is not None:
+            query = query.filter(KnowledgeBase.organization_id == organization_id)
         
         if category:
             query = query.filter(KnowledgeBase.category == category)
@@ -103,12 +113,14 @@ class KBService:
     def update_article(
         db: Session,
         article_id: int,
-        kb_update: KBUpdate
+        kb_update: KBUpdate,
+        organization_id: Optional[int] = None,
     ) -> Optional[KnowledgeBase]:
         """Update knowledge base article"""
-        article = db.query(KnowledgeBase).filter(
-            KnowledgeBase.id == article_id
-        ).first()
+        query = db.query(KnowledgeBase).filter(KnowledgeBase.id == article_id)
+        if organization_id is not None:
+            query = query.filter(KnowledgeBase.organization_id == organization_id)
+        article = query.first()
         
         if not article:
             return None
@@ -124,11 +136,12 @@ class KBService:
         return article
     
     @staticmethod
-    def mark_helpful(db: Session, article_id: int, helpful: bool = True) -> Optional[KnowledgeBase]:
+    def mark_helpful(db: Session, article_id: int, helpful: bool = True, organization_id: Optional[int] = None) -> Optional[KnowledgeBase]:
         """Mark article as helpful or not helpful"""
-        article = db.query(KnowledgeBase).filter(
-            KnowledgeBase.id == article_id
-        ).first()
+        query = db.query(KnowledgeBase).filter(KnowledgeBase.id == article_id)
+        if organization_id is not None:
+            query = query.filter(KnowledgeBase.organization_id == organization_id)
+        article = query.first()
         
         if not article:
             return None
@@ -144,11 +157,12 @@ class KBService:
         return article
     
     @staticmethod
-    def delete_article(db: Session, article_id: int) -> bool:
+    def delete_article(db: Session, article_id: int, organization_id: Optional[int] = None) -> bool:
         """Deactivate article (soft delete)"""
-        article = db.query(KnowledgeBase).filter(
-            KnowledgeBase.id == article_id
-        ).first()
+        query = db.query(KnowledgeBase).filter(KnowledgeBase.id == article_id)
+        if organization_id is not None:
+            query = query.filter(KnowledgeBase.organization_id == organization_id)
+        article = query.first()
         
         if not article:
             return False

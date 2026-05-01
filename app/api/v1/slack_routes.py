@@ -3,14 +3,25 @@ from sqlalchemy.orm import Session
 from fastapi import Depends
 import hmac
 import hashlib
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from app.database.session import get_db
 from app.services.ticket_service import TicketService
 from app.services.user_service import UserService
+from app.services.slack_installation_service import SlackInstallationService
 from app.schemas.ticket import TicketCreate
+from app.schemas.user import UserCreate
 from app.core.config import settings
 
 router = APIRouter(prefix="/slack", tags=["Slack Integration"])
+
+
+def _resolve_slack_organization_id(db: Session, team_id: Optional[str]) -> Optional[int]:
+    if not team_id:
+        return None
+    installation = SlackInstallationService.get_by_team_id(db, team_id)
+    if not installation:
+        return None
+    return installation.organization_id
 
 
 def verify_slack_signature(request: Request, body: bytes) -> bool:
@@ -58,6 +69,13 @@ async def slack_events(
     # Handle events
     event = data.get("event", {})
     event_type = event.get("type")
+    team_id = data.get("team_id") or event.get("team")
+    organization_id = _resolve_slack_organization_id(db, team_id)
+    if organization_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Slack workspace is not installed",
+        )
     
     if event_type == "app_mention":
         # Handle @mention
@@ -71,15 +89,14 @@ async def slack_events(
         
         if ticket_text:
             # Find or create user
-            user = UserService.get_user_by_slack_id(db, user_id)
+            user = UserService.get_user_by_slack_id(db, user_id, organization_id)
             if not user:
                 # Auto-create user (in production, get details from Slack API)
-                from app.schemas.user import UserCreate
                 user = UserService.create_user(db, UserCreate(
                     email=f"{user_id}@slack.local",
                     full_name=f"Slack User {user_id}",
                     teams_user_id=user_id
-                ))
+                ), organization_id)
             
             # Create ticket
             ticket_data = TicketCreate(
@@ -87,7 +104,12 @@ async def slack_events(
                 description=ticket_text,
                 category="other"
             )
-            ticket = TicketService.create_ticket(db, ticket_data, user.id)
+            if not user.organization_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Slack user is not associated with an organization"
+                )
+            ticket = TicketService.create_ticket(db, ticket_data, user.id, user.organization_id)
             
             return {
                 "status": "success",
@@ -115,6 +137,13 @@ async def slack_commands(
     command = form_data.get("command")
     text = form_data.get("text", "")
     user_id = form_data.get("user_id")
+    team_id = form_data.get("team_id")
+    organization_id = _resolve_slack_organization_id(db, team_id)
+    if organization_id is None:
+        return {
+            "response_type": "ephemeral",
+            "text": "Workspace not installed. Ask admin to complete Slack installation.",
+        }
     
     if command == "/ticket":
         # Create ticket
@@ -125,14 +154,13 @@ async def slack_commands(
             }
         
         # Find or create user
-        user = UserService.get_user_by_slack_id(db, user_id)
+        user = UserService.get_user_by_slack_id(db, user_id, organization_id)
         if not user:
-            from app.schemas.user import UserCreate
             user = UserService.create_user(db, UserCreate(
                 email=f"{user_id}@slack.local",
                 full_name=f"Slack User {user_id}",
                 teams_user_id=user_id
-            ))
+            ), organization_id)
         
         # Create ticket
         ticket_data = TicketCreate(
@@ -140,7 +168,13 @@ async def slack_commands(
             description=text,
             category="other"
         )
-        ticket = TicketService.create_ticket(db, ticket_data, user.id)
+        if not user.organization_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Slack user is not associated with an organization"
+            )
+
+        ticket = TicketService.create_ticket(db, ticket_data, user.id, user.organization_id)
         
         return {
             "response_type": "in_channel",
@@ -163,7 +197,7 @@ async def slack_commands(
                 "text": "Please provide a ticket number: /status TKT-2026-0001"
             }
         
-        ticket = TicketService.get_ticket_by_number(db, text.strip())
+        ticket = TicketService.get_ticket_by_number(db, text.strip(), organization_id)
         
         if not ticket:
             return {
@@ -186,7 +220,7 @@ async def slack_commands(
     
     elif command == "/mytickets":
         # List user's tickets
-        user = UserService.get_user_by_slack_id(db, user_id)
+        user = UserService.get_user_by_slack_id(db, user_id, organization_id)
         
         if not user:
             return {
@@ -194,7 +228,12 @@ async def slack_commands(
                 "text": "No tickets found. Create one with /ticket"
             }
         
-        tickets, total = TicketService.list_tickets(db, user_id=user.id, limit=5)
+        tickets, total = TicketService.list_tickets(
+            db,
+            organization_id=organization_id,
+            user_id=user.id,
+            limit=5,
+        )
         
         if not tickets:
             return {
@@ -248,6 +287,10 @@ async def slack_interactions(
     action_type = payload.get("type")
     
     if action_type == "block_actions":
+        team_data = payload.get("team") or {}
+        organization_id = _resolve_slack_organization_id(db, team_data.get("id"))
+        if organization_id is None:
+            return {"status": "forbidden"}
         actions = payload.get("actions", [])
         
         for action in actions:
@@ -255,7 +298,7 @@ async def slack_interactions(
             
             if action_id == "view_ticket":
                 ticket_number = action.get("value")
-                ticket = TicketService.get_ticket_by_number(db, ticket_number)
+                ticket = TicketService.get_ticket_by_number(db, ticket_number, organization_id)
                 
                 if ticket:
                     return {
@@ -302,7 +345,8 @@ async def receive_classification(
             ticket_id,
             parsed["category"],
             parsed["priority"],
-            parsed["confidence"]
+            parsed["confidence"],
+            None,
         )
         
         if ticket:

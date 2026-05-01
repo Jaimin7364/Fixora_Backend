@@ -39,6 +39,7 @@ class TicketBase(BaseModel):
 
 class TicketCreate(TicketBase):
     user_id: Optional[int] = None  # Can be set from auth context
+    organization_id: Optional[int] = None
 
 
 class TicketUpdate(BaseModel):

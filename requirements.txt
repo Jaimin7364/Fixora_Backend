@@ -11,3 +11,4 @@ python-multipart
 httpx
 requests
 email-validator
+cryptography

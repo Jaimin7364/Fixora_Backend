@@ -25,6 +25,7 @@ from app.models.sla_policy import SLAPolicy
 from app.models.user import User, UserRole
 from app.models.ticket import TicketPriority
 from app.models.knowledge_base import KnowledgeBase
+from app.models.organization import Organization
 
 
 def create_tables():
@@ -32,6 +33,19 @@ def create_tables():
     print("Creating database tables...")
     Base.metadata.create_all(bind=engine)
     print("✅ Tables created successfully")
+
+
+def get_or_create_default_org(db: Session) -> Organization:
+    """Get default organization or create it if missing"""
+    org = db.query(Organization).filter(Organization.slug == "default-organization").first()
+    if org:
+        return org
+
+    org = Organization(name="Default Organization", slug="default-organization", is_active=True)
+    db.add(org)
+    db.commit()
+    db.refresh(org)
+    return org
 
 
 def init_sla_policies(db: Session):
@@ -44,26 +58,32 @@ def init_sla_policies(db: Session):
         print("⚠️  SLA policies already exist, skipping...")
         return
     
+    default_org = get_or_create_default_org(db)
+
     sla_policies = [
         SLAPolicy(
+            organization_id=default_org.id,
             priority=TicketPriority.LOW,
             response_time_hours=24,
             resolution_time_hours=72,
             description="Low priority - 3 business days resolution"
         ),
         SLAPolicy(
+            organization_id=default_org.id,
             priority=TicketPriority.MEDIUM,
             response_time_hours=8,
             resolution_time_hours=48,
             description="Medium priority - 2 business days resolution"
         ),
         SLAPolicy(
+            organization_id=default_org.id,
             priority=TicketPriority.HIGH,
             response_time_hours=4,
             resolution_time_hours=24,
             description="High priority - 24 hours resolution"
         ),
         SLAPolicy(
+            organization_id=default_org.id,
             priority=TicketPriority.URGENT,
             response_time_hours=1,
             resolution_time_hours=8,
@@ -92,8 +112,11 @@ def init_sample_users(db: Session):
         print("⚠️  Users already exist, skipping...")
         return
     
+    default_org = get_or_create_default_org(db)
+
     users = [
         User(
+            organization_id=default_org.id,
             email="admin@fixora.com",
             full_name="Admin User",
             department="IT",
@@ -102,6 +125,7 @@ def init_sample_users(db: Session):
             is_active=True
         ),
         User(
+            organization_id=default_org.id,
             email="support@fixora.com",
             full_name="IT Support",
             department="IT",
@@ -110,6 +134,7 @@ def init_sample_users(db: Session):
             is_active=True
         ),
         User(
+            organization_id=default_org.id,
             email="john.doe@fixora.com",
             full_name="John Doe",
             department="Engineering",
@@ -118,6 +143,7 @@ def init_sample_users(db: Session):
             is_active=True
         ),
         User(
+            organization_id=default_org.id,
             email="jane.smith@fixora.com",
             full_name="Jane Smith",
             department="Marketing",
@@ -148,8 +174,11 @@ def init_knowledge_base(db: Session):
         print("⚠️  KB articles already exist, skipping...")
         return
     
+    default_org = get_or_create_default_org(db)
+
     articles = [
         KnowledgeBase(
+            organization_id=default_org.id,
             title="How to reset your password",
             question="I forgot my password, how do I reset it?",
             answer="1. Go to login page\n2. Click 'Forgot Password'\n3. Enter your email\n4. Check your email for reset link\n5. Click link and create new password",
@@ -158,6 +187,7 @@ def init_knowledge_base(db: Session):
             is_featured=True
         ),
         KnowledgeBase(
+            organization_id=default_org.id,
             title="Printer offline troubleshooting",
             question="My printer shows as offline, what should I do?",
             answer="1. Check if printer is powered on\n2. Verify USB or network cable connection\n3. Restart Print Spooler service\n4. Set printer as default\n5. Try printing a test page",
@@ -166,6 +196,7 @@ def init_knowledge_base(db: Session):
             is_featured=True
         ),
         KnowledgeBase(
+            organization_id=default_org.id,
             title="VPN connection setup",
             question="How do I connect to company VPN?",
             answer="1. Open VPN client\n2. Enter VPN server address\n3. Use your company credentials\n4. Select 'Save credentials'\n5. Click Connect",
@@ -174,6 +205,7 @@ def init_knowledge_base(db: Session):
             is_featured=False
         ),
         KnowledgeBase(
+            organization_id=default_org.id,
             title="Software installation request",
             question="How do I request new software installation?",
             answer="1. Create a ticket with software name\n2. Provide business justification\n3. Include manager approval\n4. IT will review within 2 business days",

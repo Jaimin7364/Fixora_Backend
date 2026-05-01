@@ -30,8 +30,14 @@ def create_ticket(
     """
     user_id = current_user.id
     
+    if not current_user.organization_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User is not assigned to an organization"
+        )
+
     # Create ticket
-    ticket = TicketService.create_ticket(db, ticket_data, user_id)
+    ticket = TicketService.create_ticket(db, ticket_data, user_id, current_user.organization_id)
     
     # Send to n8n for AI classification (async in production)
     try:
@@ -49,7 +55,8 @@ def create_ticket(
                     ticket.id,
                     parsed["category"],
                     parsed["priority"],
-                    parsed["confidence"]
+                    parsed["confidence"],
+                    current_user.organization_id,
                 )
                 db.refresh(ticket)
     except Exception as e:
@@ -95,6 +102,7 @@ def list_tickets(
         status=status_filter,
         priority=priority,
         category=category,
+        organization_id=current_user.organization_id,
         user_id=user_id,
         assigned_to_id=assigned_to_id,
         search=search,
@@ -119,7 +127,7 @@ def get_ticket(
     """
     Get detailed information about a specific ticket
     """
-    ticket = TicketService.get_ticket(db, ticket_id)
+    ticket = TicketService.get_ticket(db, ticket_id, current_user.organization_id)
     
     if not ticket:
         raise HTTPException(
@@ -145,7 +153,7 @@ def get_ticket_by_number(
     """
     Get ticket by ticket number (e.g., TKT-2026-0001)
     """
-    ticket = TicketService.get_ticket_by_number(db, ticket_number)
+    ticket = TicketService.get_ticket_by_number(db, ticket_number, current_user.organization_id)
     
     if not ticket:
         raise HTTPException(
@@ -174,7 +182,7 @@ def update_ticket(
     
     Can update: title, description, category, priority, status, assigned_to_id
     """
-    existing_ticket = TicketService.get_ticket(db, ticket_id)
+    existing_ticket = TicketService.get_ticket(db, ticket_id, current_user.organization_id)
     if not existing_ticket:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -187,7 +195,7 @@ def update_ticket(
             detail="You do not have permission to update this ticket"
         )
     
-    ticket = TicketService.update_ticket(db, ticket_id, ticket_update, current_user.id)
+    ticket = TicketService.update_ticket(db, ticket_id, ticket_update, current_user.id, current_user.organization_id)
     
     if not ticket:
         raise HTTPException(
@@ -218,7 +226,7 @@ def change_ticket_status(
     - closed
     - cancelled
     """
-    ticket = TicketService.change_status(db, ticket_id, status_update, current_user.id)
+    ticket = TicketService.change_status(db, ticket_id, status_update, current_user.id, current_user.organization_id)
     
     if not ticket:
         raise HTTPException(
@@ -242,7 +250,7 @@ def assign_ticket(
     Assign ticket to IT support staff
     """
     ticket = TicketService.assign_ticket(
-        db, ticket_id, assignment.assigned_to_id, current_user.id
+        db, ticket_id, assignment.assigned_to_id, current_user.id, current_user.organization_id
     )
     
     if not ticket:
@@ -265,7 +273,7 @@ def add_comment(
     Add a comment to a ticket
     """
     # Verify ticket exists
-    ticket = TicketService.get_ticket(db, ticket_id)
+    ticket = TicketService.get_ticket(db, ticket_id, current_user.organization_id)
     if not ticket:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -278,7 +286,7 @@ def add_comment(
             detail="You do not have permission to comment on this ticket"
         )
 
-    activity = TicketService.add_comment(db, ticket_id, comment_data, current_user.id)
+    activity = TicketService.add_comment(db, ticket_id, comment_data, current_user.id, current_user.organization_id)
     
     return activity
 
@@ -293,7 +301,7 @@ def get_ticket_activities(
     Get all activities/history for a ticket
     """
     # Verify ticket exists
-    ticket = TicketService.get_ticket(db, ticket_id)
+    ticket = TicketService.get_ticket(db, ticket_id, current_user.organization_id)
     if not ticket:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -306,7 +314,7 @@ def get_ticket_activities(
             detail="You do not have permission to view this ticket activity"
         )
     
-    activities = TicketService.get_ticket_activities(db, ticket_id)
+    activities = TicketService.get_ticket_activities(db, ticket_id, current_user.organization_id)
     
     return activities
 
@@ -322,7 +330,7 @@ def delete_ticket(
     """
     Delete a ticket (sets status to cancelled)
     """
-    success = TicketService.delete_ticket(db, ticket_id)
+    success = TicketService.delete_ticket(db, ticket_id, _current_user.organization_id)
     
     if not success:
         raise HTTPException(
@@ -354,6 +362,7 @@ def get_user_tickets(
     
     tickets, total = TicketService.list_tickets(
         db=db,
+        organization_id=current_user.organization_id,
         user_id=user_id,
         skip=skip,
         limit=page_size
