@@ -36,7 +36,8 @@ def _verify_state(state: str) -> Optional[str]:
             return None
         if int(time.time()) - int(ts) > 900:
             return None
-        return team_hint or None
+        # Empty team_hint is valid for normal installs; only signature/TTL failures are invalid.
+        return team_hint
     except Exception:
         return None
 
@@ -70,7 +71,7 @@ def slack_oauth_callback(code: str, state: str, db: Session = Depends(get_db)):
         )
 
     team_hint = _verify_state(state)
-    if state and team_hint is None:
+    if team_hint is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid state")
 
     response = requests.post(

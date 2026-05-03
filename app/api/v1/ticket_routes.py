@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Header
 from sqlalchemy.orm import Session
 from typing import Optional, List
 from app.database.session import get_db
 from app.core.security import get_current_user, require_roles
+from app.core.config import settings
 from app.models.user import User, UserRole
 from app.schemas.ticket import (
     TicketCreate, TicketUpdate, TicketResponse, TicketListResponse,
@@ -19,6 +20,7 @@ router = APIRouter(prefix="/tickets", tags=["Tickets"])
 def create_ticket(
     ticket_data: TicketCreate,
     current_user: User = Depends(get_current_user),
+    internal_token: Optional[str] = Header(None, alias="X-Internal-Token"),
     db: Session = Depends(get_db)
 ):
     """
@@ -29,6 +31,14 @@ def create_ticket(
     - **category**: Issue category (hardware, software, network, etc.)
     """
     user_id = current_user.id
+    # Allow internal test calls to set a specific ticket owner.
+    if (
+        internal_token
+        and settings.INTERNAL_API_TOKEN
+        and internal_token == settings.INTERNAL_API_TOKEN
+        and ticket_data.user_id
+    ):
+        user_id = ticket_data.user_id
     
     if not current_user.organization_id:
         raise HTTPException(

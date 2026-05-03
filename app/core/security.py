@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Iterable
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Header
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -13,7 +13,10 @@ from app.models.user import User, UserRole
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_PREFIX}/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(
+	tokenUrl=f"{settings.API_V1_PREFIX}/auth/login",
+	auto_error=False,
+)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -53,8 +56,38 @@ def decode_token(token: str) -> dict:
 
 def get_current_user(
 	db: Session = Depends(get_db),
-	token: str = Depends(oauth2_scheme),
+	token: Optional[str] = Depends(oauth2_scheme),
+	internal_token: Optional[str] = Header(None, alias="X-Internal-Token"),
+	internal_user_id: Optional[int] = Header(None, alias="X-Internal-User-Id"),
+	internal_org_id: Optional[int] = Header(None, alias="X-Internal-Org-Id"),
 ) -> User:
+	# Internal token bypass (testing only)
+	if settings.INTERNAL_API_TOKEN and internal_token == settings.INTERNAL_API_TOKEN:
+		user_id_value = internal_user_id or settings.INTERNAL_USER_ID
+		if user_id_value:
+			user = db.query(User).filter(User.id == int(user_id_value)).first()
+			if user and user.is_active:
+				return user
+		if internal_org_id:
+			user = (
+				db.query(User)
+				.filter(User.organization_id == int(internal_org_id))
+				.order_by(User.id.asc())
+				.first()
+			)
+			if user and user.is_active:
+				return user
+		raise HTTPException(
+			status_code=status.HTTP_401_UNAUTHORIZED,
+			detail="Invalid internal authentication",
+		)
+
+	if not token:
+		raise HTTPException(
+			status_code=status.HTTP_401_UNAUTHORIZED,
+			detail="Not authenticated",
+			headers={"WWW-Authenticate": "Bearer"},
+		)
 	payload = decode_token(token)
 
 	if payload.get("type") != "access":

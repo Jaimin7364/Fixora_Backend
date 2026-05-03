@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     SLACK_OAUTH_REDIRECT_URI: Optional[str] = None
     SLACK_OAUTH_SCOPES: str = "commands,app_mentions:read,chat:write"
     SLACK_ENCRYPTION_KEY: Optional[str] = None
+
+    # Internal API (testing only)
+    INTERNAL_API_TOKEN: Optional[str] = None
+    INTERNAL_USER_ID: Optional[int] = None
     
     # Gemini AI
     GEMINI_API_KEY: Optional[str] = None
